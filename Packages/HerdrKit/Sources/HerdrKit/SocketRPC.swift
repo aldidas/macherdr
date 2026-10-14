@@ -306,7 +306,10 @@ public struct SocketRPC: Sendable {
             tv_sec: timeoutSeconds.map { Int($0) } ?? 0,
             tv_usec: 0
         )
-        guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+        // macOS refuses socket options with EINVAL once the peer has closed. A
+        // server that answered and then closed has left its reply in the socket,
+        // and read() on it can't block, so read it instead of failing.
+        guard setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size)) == 0 || errno == EINVAL else {
             throw HerdrError.connectionFailed("setsockopt(SO_RCVTIMEO): \(String(cString: strerror(errno)))")
         }
         if let index = buffer.firstIndex(of: 0x0A) {

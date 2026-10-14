@@ -85,6 +85,27 @@ final class SocketRPCTests: XCTestCase {
         XCTAssertTrue(buffer.isEmpty)
     }
 
+    /// A server can answer and close before the client gets to read. The answer
+    /// is still waiting in the socket and must be returned, not an error.
+    func testReadLineReturnsAReplyTheServerSentBeforeClosing() throws {
+        var fds: [Int32] = [0, 0]
+        let result = fds.withUnsafeMutableBufferPointer { buffer in
+            socketpair(AF_UNIX, SOCK_STREAM, 0, buffer.baseAddress!)
+        }
+        XCTAssertEqual(result, 0, String(cString: strerror(errno)))
+        defer { close(fds[0]) }
+
+        let reply = Data((#"{"id":"1","result":{"version":"0.8.0"}}"# + "\n").utf8)
+        XCTAssertEqual(reply.withUnsafeBytes { write(fds[1], $0.baseAddress, $0.count) }, reply.count)
+        close(fds[1])
+
+        XCTAssertEqual(
+            try SocketRPC.readLine(fd: fds[0], timeoutSeconds: 5),
+            Data(#"{"id":"1","result":{"version":"0.8.0"}}"#.utf8)
+        )
+        XCTAssertNil(try SocketRPC.readLine(fd: fds[0], timeoutSeconds: 5), "then end of stream")
+    }
+
     func testReadLineClearsARequestTimeoutForAnEventStream() throws {
         var fds: [Int32] = [0, 0]
         let result = fds.withUnsafeMutableBufferPointer { buffer in
