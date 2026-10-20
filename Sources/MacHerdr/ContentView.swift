@@ -473,15 +473,18 @@ struct DetailView: View {
                 HStack(spacing: 6) {
                     if info.status == .blocked { statusGlyph(.blocked) }
                     if let kind = info.agentKind {
-                        AgentKindBadge(kind: kind)
+                        AgentKindBadge(
+                            kind: kind,
+                            color: backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.text
+                        )
                     } else {
                         Image(systemName: "terminal")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.textTertiary)
+                            .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.text)
                     }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Theme.textGhost)
+                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textGhost : Theme.textSecondary)
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 30)
