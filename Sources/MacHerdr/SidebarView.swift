@@ -121,7 +121,7 @@ struct SidebarView: View {
 
     private var spacesPane: some View {
         VStack(spacing: 1) {
-            StickySection(background: { Theme.sidebarBackground }) {
+            StickySection(background: { Theme.sidebarHeaderBackground }) {
                 groupHeader("Spaces", expanded: $spacesExpanded) {
                     EmptyView()
                 }
@@ -146,7 +146,7 @@ struct SidebarView: View {
 
     private var agentsPane: some View {
         VStack(spacing: 1) {
-            StickySection(background: { Theme.sidebarBackground }) {
+            StickySection(background: { Theme.sidebarHeaderBackground }) {
                 groupHeader("Agents", expanded: $agentsExpanded) {
                     Text("priority")
                         .font(.system(size: 11))
@@ -200,12 +200,13 @@ struct SidebarView: View {
                 }
             } label: {
                 HStack(spacing: 5) {
+                    // Over a background image the quiet grays lose contrast; step up one level.
                     Text(title)
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.textSecondary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.textGhost)
+                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textGhost : Theme.textTertiary)
                         .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
                     Spacer(minLength: 0)
                 }

@@ -140,6 +140,12 @@ enum Theme {
     /// Solid (not vibrancy) so the sidebar never shows the desktop through it.
     /// Same surface as the titlebar, so the sidebar and titlebar read as one.
     static var sidebarBackground: Color { contentBackground }
+    /// Sticky sidebar headers sit on top of the sidebar surface, so a full-strength
+    /// layer here stacks with it and hides the background image; keep a light tint
+    /// that still dims rows scrolling under the header.
+    static var sidebarHeaderBackground: Color {
+        backgroundImage == nil ? sidebarBackground : solidContentBackground.opacity(0.4)
+    }
     /// Titlebar tab strip: lighter than `contentBackground` (the titlebar) in dark mode,
     /// darker in light mode.
     /// Derived from the terminal background so it tracks the theme: nudged toward
