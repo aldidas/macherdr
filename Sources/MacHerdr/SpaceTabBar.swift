@@ -8,6 +8,8 @@ struct SpaceTabBar: View {
     // Re-render when the terminal theme (and so Theme.tabStripBackground) changes.
     @AppStorage(TerminalThemeSetting.key) private var terminalThemeName = ""
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
     @State private var renameText = ""
     @State private var draggingTabID: String?
     @State private var tabDrop: (id: String, after: Bool)?

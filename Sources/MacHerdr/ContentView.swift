@@ -26,6 +26,24 @@ struct RootView: View {
     @ObservedObject var model: AppModel
     // Deliberately not persisted: the app always launches with the sidebar visible.
     @State private var sidebarCollapsed = false
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+
+    /// Drawn through an overlay on a clear view so the image's pixel size never
+    /// feeds into the window's layout.
+    @ViewBuilder private var backgroundImageLayer: some View {
+        if let image = Theme.backgroundImage {
+            Color.clear
+                .overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -58,6 +76,7 @@ struct RootView: View {
                     )
             }
         }
+        .background { backgroundImageLayer }
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: model.showDevicePanel)
         .herdrKeybindings(model: model)
         .onAppear { model.toggleSidebarHandler = { sidebarCollapsed.toggle() } }
@@ -378,8 +397,9 @@ struct DetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // No background of its own: the view's background below already paints
+            // this surface, and a second translucent layer would hide the image.
             titlebar
-                .background(Theme.contentBackground)
                 .zIndex(1)
             detailContent
                 .clipShape(RoundedRectangle(cornerRadius: DetailMetrics.terminalCornerRadius, style: .continuous))
@@ -684,6 +704,8 @@ struct DetailView: View {
     @AppStorage(TerminalDefaults.lineSpacingKey) private var terminalLineSpacing = TerminalDefaults.defaultLineSpacing
     @AppStorage(TerminalThemeSetting.key) private var terminalThemeName = ""
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
     @AppStorage("terminal.mouseReporting") private var terminalMouseReporting = true
     @AppStorage("terminal.copyOnSelect") private var terminalCopyOnSelect = true
     @AppStorage("tabs.hideWhenSingle") private var hideSingleTabBar = true

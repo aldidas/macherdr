@@ -8,6 +8,8 @@ struct SidebarView: View {
     // Re-render when the terminal theme (and so Theme.contentBackground) changes.
     @AppStorage(TerminalThemeSetting.key) private var terminalThemeName = ""
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
     @Binding var collapsed: Bool
     var width: CGFloat = SidebarWidth.defaultWidth
     @State private var draggingSpaceID: String?

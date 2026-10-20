@@ -27,6 +27,31 @@ enum Theme {
         return .match
     }
 
+    /// Settings → Appearance: an image drawn behind the window, covered by the chrome colors.
+    static let backgroundImagePathKey = "appearance.backgroundImagePath"
+    /// How opaque the chrome colors are over the image (1 = image hidden).
+    static let backgroundOverlayKey = "appearance.backgroundOverlay"
+    static let defaultBackgroundOverlay = 0.85
+    private static var imageCache: (path: String, image: NSImage?)?
+    static var backgroundImage: NSImage? {
+        guard let path = UserDefaults.standard.string(forKey: backgroundImagePathKey), !path.isEmpty else {
+            return nil
+        }
+        if let cached = imageCache, cached.path == path { return cached.image }
+        let image = NSImage(contentsOfFile: path)
+        imageCache = (path, image)
+        return image
+    }
+    private static var backgroundOverlay: Double {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: backgroundOverlayKey) != nil else { return defaultBackgroundOverlay }
+        return min(max(defaults.double(forKey: backgroundOverlayKey), 0), 1)
+    }
+    /// Chrome colors sit on top of the image at the overlay opacity.
+    private static func overImage(_ color: Color) -> Color {
+        backgroundImage == nil ? color : color.opacity(backgroundOverlay)
+    }
+
     private static func dynamic(_ light: NSColor, _ dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
@@ -75,7 +100,8 @@ enum Theme {
     }
     /// Window chrome (titlebar, sidebar, gutters around the terminal) matches the
     /// terminal background so the window reads as one surface.
-    static var contentBackground: Color {
+    static var contentBackground: Color { overImage(solidContentBackground) }
+    private static var solidContentBackground: Color {
         switch windowBackgroundMode {
         case .off: return defaultContentBackground
         case .match: return terminalBackground

@@ -8,6 +8,8 @@ struct SidebarRail: View {
     // Re-render when the terminal theme (and so Theme.contentBackground) changes.
     @AppStorage(TerminalThemeSetting.key) private var terminalThemeName = ""
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
     static let width: CGFloat = 36
 
     @ObservedObject var model: AppModel

@@ -587,6 +587,8 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppLanguage.defaultsKey) private var language = AppLanguage.system.rawValue
     @AppStorage("tabs.hideWhenSingle") private var hideSingleTabBar = true
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
+    @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
+    @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
 
     var body: some View {
         Form {
@@ -607,6 +609,25 @@ struct AppearanceSettingsView: View {
                 Text("Default").tag(WindowBackgroundMode.off.rawValue)
                 Text("Match terminal theme").tag(WindowBackgroundMode.match.rawValue)
                 Text("Darker than terminal theme").tag(WindowBackgroundMode.darker.rawValue)
+            }
+
+            LabeledContent("Background image") {
+                HStack(spacing: 8) {
+                    Text(backgroundImagePath.isEmpty ? "None" : (backgroundImagePath as NSString).lastPathComponent)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Choose…") { chooseBackgroundImage() }
+                    if !backgroundImagePath.isEmpty {
+                        Button("Remove") { backgroundImagePath = "" }
+                    }
+                }
+            }
+            if !backgroundImagePath.isEmpty {
+                LabeledContent("Overlay opacity") {
+                    Slider(value: $backgroundOverlay, in: 0...1)
+                        .frame(width: 180)
+                }
             }
 
             LabeledContent("Language") {
@@ -630,6 +651,25 @@ struct AppearanceSettingsView: View {
             }
         }
         .padding(20)
+    }
+}
+
+extension AppearanceSettingsView {
+    fileprivate func chooseBackgroundImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        let apply = { (response: NSApplication.ModalResponse) in
+            if response == .OK, let url = panel.url { backgroundImagePath = url.path }
+        }
+        // A sheet on the Settings window stays attached to it; a free-floating
+        // modal panel can open behind other windows.
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: apply)
+        } else {
+            apply(panel.runModal())
+        }
     }
 }
 
