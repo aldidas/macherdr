@@ -589,6 +589,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
 
     var body: some View {
         Form {
@@ -611,6 +612,13 @@ struct AppearanceSettingsView: View {
                 Text("Darker than terminal theme").tag(WindowBackgroundMode.darker.rawValue)
             }
 
+            Toggle("Translucent window (frosted glass)", isOn: $translucentWindow)
+            if translucentWindow {
+                Text("Turns the background image off.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
             LabeledContent("Background image") {
                 HStack(spacing: 8) {
                     Text(backgroundImagePath.isEmpty ? "None" : (backgroundImagePath as NSString).lastPathComponent)
@@ -622,8 +630,9 @@ struct AppearanceSettingsView: View {
                         Button("Remove") { backgroundImagePath = "" }
                     }
                 }
+                .disabled(translucentWindow)
             }
-            if !backgroundImagePath.isEmpty {
+            if !backgroundImagePath.isEmpty && !translucentWindow {
                 LabeledContent("Overlay opacity") {
                     Slider(value: $backgroundOverlay, in: 0...1)
                         .frame(width: 180)

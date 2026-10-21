@@ -10,6 +10,7 @@ struct SidebarRail: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
     static let width: CGFloat = 36
 
     @ObservedObject var model: AppModel

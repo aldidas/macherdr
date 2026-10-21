@@ -10,6 +10,7 @@ struct SpaceTabBar: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
     @State private var renameText = ""
     @State private var draggingTabID: String?
     @State private var tabDrop: (id: String, after: Bool)?

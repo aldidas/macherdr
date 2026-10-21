@@ -28,11 +28,16 @@ struct RootView: View {
     @State private var sidebarCollapsed = false
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
 
     /// Drawn through an overlay on a clear view so the image's pixel size never
     /// feeds into the window's layout.
     @ViewBuilder private var backgroundImageLayer: some View {
-        if let image = Theme.backgroundImage {
+        if translucentWindow {
+            FrostedBackground()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+        } else if let image = Theme.backgroundImage {
             Color.clear
                 .overlay {
                     Image(nsImage: image)
@@ -183,6 +188,19 @@ enum TitlebarLayout {
     }
 }
 
+/// Blurs whatever is behind the window; the window itself must be non-opaque.
+private struct FrostedBackground: NSViewRepresentable {
+    func makeNSView(context _: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_: NSVisualEffectView, context _: Context) {}
+}
+
 private struct WindowTitlebarInteraction: NSViewRepresentable {
     func makeNSView(context _: Context) -> NSView {
         WindowTitlebarInteractionView()
@@ -190,8 +208,12 @@ private struct WindowTitlebarInteraction: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context _: Context) {
         let appearance = Theme.chromeAppearance
+        let translucent = Theme.translucentWindow
         DispatchQueue.main.async { [weak view] in
-            view?.window?.appearance = appearance
+            guard let window = view?.window else { return }
+            window.appearance = appearance
+            window.isOpaque = !translucent
+            window.backgroundColor = translucent ? .clear : .windowBackgroundColor
         }
     }
 }
@@ -366,6 +388,9 @@ private final class WindowTitlebarInteractionView: NSView {
 }
 
 private struct WindowTitlebarInteractionModifier: ViewModifier {
+    // Re-apply the window's opacity when the setting changes.
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
+
     func body(content: Content) -> some View {
         content
             .background(WindowTitlebarInteraction())
@@ -475,16 +500,16 @@ struct DetailView: View {
                     if let kind = info.agentKind {
                         AgentKindBadge(
                             kind: kind,
-                            color: backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.text
+                            color: !Theme.usesBackdrop ? Theme.textTertiary : Theme.text
                         )
                     } else {
                         Image(systemName: "terminal")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.text)
+                            .foregroundStyle(!Theme.usesBackdrop ? Theme.textTertiary : Theme.text)
                     }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textGhost : Theme.textSecondary)
+                        .foregroundStyle(!Theme.usesBackdrop ? Theme.textGhost : Theme.textSecondary)
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 30)
@@ -709,6 +734,7 @@ struct DetailView: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
     @AppStorage("terminal.mouseReporting") private var terminalMouseReporting = true
     @AppStorage("terminal.copyOnSelect") private var terminalCopyOnSelect = true
     @AppStorage("tabs.hideWhenSingle") private var hideSingleTabBar = true

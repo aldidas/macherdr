@@ -10,6 +10,7 @@ struct SidebarView: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
     @Binding var collapsed: Bool
     var width: CGFloat = SidebarWidth.defaultWidth
     @State private var draggingSpaceID: String?
@@ -203,10 +204,10 @@ struct SidebarView: View {
                     // Over a background image the quiet grays lose contrast; step up one level.
                     Text(title)
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textTertiary : Theme.textSecondary)
+                        .foregroundStyle(!Theme.usesBackdrop ? Theme.textTertiary : Theme.textSecondary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(backgroundImagePath.isEmpty ? Theme.textGhost : Theme.textTertiary)
+                        .foregroundStyle(!Theme.usesBackdrop ? Theme.textGhost : Theme.textTertiary)
                         .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
                     Spacer(minLength: 0)
                 }

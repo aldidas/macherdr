@@ -23,6 +23,7 @@ struct SidebarResizeDivider: View {
     @AppStorage(Theme.windowBackgroundKey) private var windowBackgroundMode = Theme.defaultWindowBackgroundMode
     @AppStorage(Theme.backgroundImagePathKey) private var backgroundImagePath = ""
     @AppStorage(Theme.backgroundOverlayKey) private var backgroundOverlay = Theme.defaultBackgroundOverlay
+    @AppStorage(Theme.translucentWindowKey) private var translucentWindow = false
     @Binding var width: Double
     let collapsed: Bool
     /// A collapsed sidebar that leaves a rail still needs its edge line.

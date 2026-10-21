@@ -32,9 +32,17 @@ enum Theme {
     /// How opaque the chrome colors are over the image (1 = image hidden).
     static let backgroundOverlayKey = "appearance.backgroundOverlay"
     static let defaultBackgroundOverlay = 0.85
+    /// Settings → Appearance: frosted-glass chrome. Turns the background image off.
+    static let translucentWindowKey = "appearance.translucentWindow"
+    static var translucentWindow: Bool { UserDefaults.standard.bool(forKey: translucentWindowKey) }
+    /// Chrome colors over the blurred desktop; lower lets more of it through.
+    private static let translucentOverlay = 0.45
+    /// True when the chrome sits on an image or the blurred desktop rather than a solid surface.
+    static var usesBackdrop: Bool { translucentWindow || backgroundImage != nil }
     private static var imageCache: (path: String, image: NSImage?)?
     static var backgroundImage: NSImage? {
-        guard let path = UserDefaults.standard.string(forKey: backgroundImagePathKey), !path.isEmpty else {
+        guard !translucentWindow,
+              let path = UserDefaults.standard.string(forKey: backgroundImagePathKey), !path.isEmpty else {
             return nil
         }
         if let cached = imageCache, cached.path == path { return cached.image }
@@ -49,7 +57,8 @@ enum Theme {
     }
     /// Chrome colors sit on top of the image at the overlay opacity.
     private static func overImage(_ color: Color) -> Color {
-        backgroundImage == nil ? color : color.opacity(backgroundOverlay)
+        if translucentWindow { return color.opacity(translucentOverlay) }
+        return backgroundImage == nil ? color : color.opacity(backgroundOverlay)
     }
 
     private static func dynamic(_ light: NSColor, _ dark: NSColor) -> Color {
@@ -144,7 +153,7 @@ enum Theme {
     /// layer here stacks with it and hides the background image; keep a light tint
     /// that still dims rows scrolling under the header.
     static var sidebarHeaderBackground: Color {
-        backgroundImage == nil ? sidebarBackground : solidContentBackground.opacity(0.4)
+        usesBackdrop ? solidContentBackground.opacity(0.4) : sidebarBackground
     }
     /// Titlebar tab strip: lighter than `contentBackground` (the titlebar) in dark mode,
     /// darker in light mode.
