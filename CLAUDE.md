@@ -41,18 +41,8 @@ shader): `xcodebuild -downloadComponent MetalToolchain` once.
 
 ## Release
 
-Repo: github.com/missuo/herdrm. Push a `v*` tag → `.github/workflows/release.yml`
-builds Release (Developer ID: MOE AI LLC, hardened runtime), notarizes via
-notarytool, staples, Sparkle-signs the zip, generates `appcast.xml`, and
-publishes both as a GitHub release. Secrets: MACOS_CERTIFICATE_P12/_PASSWORD,
-APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, SPARKLE_PRIVATE_KEY (EdDSA private
-key also lives in the local login Keychain; public key is pinned in project.yml).
-Sparkle feed: the release asset `appcast.xml` at `releases/latest/download/`.
-Versioning: MARKETING_VERSION from the tag, CFBundleVersion = CI run number.
-CHANGELOG.md is mandatory: CI extracts the `## [x.y.z]` section for the GitHub
-release notes and the Sparkle update description, and fails if it's missing —
-add the section before tagging. The cask in OwO-Network/homebrew-brew is
-auto-bumped after each release.
+None. This is a personal fork with no releases; the upstream release workflow was removed.
+Upstream (missuo/herdrm) shipped via a tag-triggered CI pipeline, which this fork does not use.
 
 ## herdr protocol notes (0.9.0, private protocol 22; verified against the live socket)
 

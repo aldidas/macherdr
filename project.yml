@@ -1,6 +1,6 @@
 name: MacHerdr
 options:
-  bundleIdPrefix: dev.bybee
+  bundleIdPrefix: aldi.daswanto
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
@@ -55,14 +55,14 @@ targets:
         LSApplicationCategoryType: public.app-category.developer-tools
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSPrincipalClass: NSApplication
-        NSHumanReadableCopyright: "© 2026 MOE AI LLC"
+        NSHumanReadableCopyright: "© 2026 Aldi Daswanto. Based on herdrm © MOE AI LLC (PolyForm Noncommercial 1.0.0)"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations:
           - en
           - zh-Hans
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.bybee.herdrm
+        PRODUCT_BUNDLE_IDENTIFIER: aldi.daswanto.macherdr
         PRODUCT_NAME: MacHerdr
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         SWIFT_VERSION: "5.10"
@@ -73,15 +73,15 @@ targets:
         ENABLE_APP_SANDBOX: NO
         COMBINE_HIDPI_IMAGES: YES
         CODE_SIGN_STYLE: Manual
-        DEVELOPMENT_TEAM: NCFNX3LJ83
+        DEVELOPMENT_TEAM: 3TALK9428M
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
       configs:
         Debug:
           # real identity so UserNotifications & friends work in dev builds
-          CODE_SIGN_IDENTITY: "Developer ID Application: MOE AI LLC (NCFNX3LJ83)"
+          CODE_SIGN_IDENTITY: "Apple Development: Aldi Daswanto (XLV8A6N6B2)"
           ONLY_ACTIVE_ARCH: YES
         Release:
-          CODE_SIGN_IDENTITY: "Developer ID Application: MOE AI LLC (NCFNX3LJ83)"
+          CODE_SIGN_IDENTITY: "Apple Development: Aldi Daswanto (XLV8A6N6B2)"
           ONLY_ACTIVE_ARCH: NO
           ARCHS: "arm64 x86_64"
 
@@ -94,7 +94,7 @@ targets:
       - target: MacHerdr
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.bybee.herdrm.tests
+        PRODUCT_BUNDLE_IDENTIFIER: aldi.daswanto.macherdr.tests
         GENERATE_INFOPLIST_FILE: YES
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         SWIFT_VERSION: "5.10"

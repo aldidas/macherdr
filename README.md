@@ -123,8 +123,11 @@ flowchart LR
 - [waku](https://github.com/egoist/waku): sidebar design reference.
 - [libghostty-spm](https://github.com/Lakr233/libghostty-spm): the Ghostty terminal engine
   (Metal), by [@Lakr233](https://github.com/Lakr233).
+- [herdr](https://herdr.dev): the app icon uses the herdr logo, © Herdr, Inc. It is a trademark of
+  its owner, used here only for personal, non-distributed use; no endorsement is implied.
 - [Lobe Icons](https://github.com/lobehub/lobe-icons) and
-  [Simple Icons](https://simpleicons.org): brand icons.
+  [Simple Icons](https://simpleicons.org): brand icons. The logos are trademarks of their
+  respective owners and are used only to identify the corresponding agents; no endorsement is implied.
 
 ## License
 
@@ -132,3 +135,5 @@ This fork is for my personal use only and will always be free. It keeps the upst
 unchanged: [PolyForm Noncommercial 1.0.0](LICENSE.md). You may use, modify, and share it for
 any noncommercial purpose; commercial use requires a separate license from the upstream
 maintainer.
+
+Required Notice: Based on [herdrm](https://github.com/missuo/herdrm), Copyright © 2026 MOE AI LLC.

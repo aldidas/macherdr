@@ -1,6 +1,6 @@
 .PHONY: gen build run test kit-test uiux-test clean release install
 
-CODE_SIGN_IDENTITY ?= -
+CODE_SIGN_IDENTITY ?= Apple Development: Aldi Daswanto (XLV8A6N6B2)
 
 gen:
 	xcodegen generate
@@ -14,7 +14,7 @@ build: gen
 # the runtime option — fine for a locally built copy, not for distribution.
 release: gen
 	xcodebuild -project MacHerdr.xcodeproj -scheme MacHerdr -configuration Release -derivedDataPath build build CODE_SIGN_IDENTITY="$(CODE_SIGN_IDENTITY)" CODE_SIGN_STYLE=Manual -skipPackagePluginValidation | tail -5
-	codesign --force --deep --sign - build/Build/Products/Release/MacHerdr.app
+	codesign --force --deep --sign "$(CODE_SIGN_IDENTITY)" build/Build/Products/Release/MacHerdr.app
 
 # Replace /Applications/MacHerdr.app with the local Release build (backs up the
 # previous copy next to it once, as MacHerdr.previous.app).
