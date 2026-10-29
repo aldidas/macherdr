@@ -81,13 +81,31 @@ enum TerminalDefaults {
         return NSFont(descriptor: descriptor, size: size) ?? base
     }
 
+    private static let familiesLock = NSLock()
+    private static var cachedMonospacedFamilies: [String]?
+    /// Drops the cache when fonts are installed or removed while running.
+    private static let fontSetObserver = NotificationCenter.default.addObserver(
+        forName: NSFont.fontSetChangedNotification, object: nil, queue: nil
+    ) { _ in
+        familiesLock.lock()
+        cachedMonospacedFamilies = nil
+        familiesLock.unlock()
+    }
+
     /// Fixed-pitch font families available on this Mac, for the settings picker.
+    /// Cached: probing every installed family takes tens to hundreds of ms, and
+    /// the settings view re-inits on every AppModel change.
     static func monospacedFamilies() -> [String] {
-        let manager = NSFontManager.shared
-        return manager.availableFontFamilies.filter { family in
+        _ = fontSetObserver
+        familiesLock.lock()
+        defer { familiesLock.unlock() }
+        if let cachedMonospacedFamilies { return cachedMonospacedFamilies }
+        let families = NSFontManager.shared.availableFontFamilies.filter { family in
             guard let font = NSFont(name: family, size: 12) else { return false }
             return font.isFixedPitch
         }.sorted()
+        cachedMonospacedFamilies = families
+        return families
     }
 
     /// Resolves a family name (e.g. a Ghostty `font-family`) to a family
