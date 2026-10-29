@@ -53,6 +53,19 @@ final class TerminalLinkTests: XCTestCase {
         XCTAssertEqual(link?.text, "https://example.com/one")
     }
 
+    func testLinkAmongManyJoinedFullRowsIsFound() {
+        // TUI borders and padding fill rows edge to edge, so the whole screen
+        // joins into one string; only the word under the pointer matters.
+        let columns = 40
+        let filler = String(repeating: "─", count: columns)
+        let linkRow = "see https://example.com/x " + String(repeating: " ", count: columns - 26)
+        let lines = Array(repeating: filler, count: 30) + [linkRow] + Array(repeating: filler, count: 30)
+        let link = LineBreakTerminalView.link(in: lines, row: 30, column: 8, columns: columns)
+        XCTAssertEqual(link?.text, "https://example.com/x")
+        XCTAssertNil(LineBreakTerminalView.link(in: lines, row: 30, column: 1, columns: columns))
+        XCTAssertNil(LineBreakTerminalView.link(in: lines, row: 5, column: 3, columns: columns))
+    }
+
     func testBareWordsAreNotLinks() {
         let lines = ["open README.md now"]
         XCTAssertNil(LineBreakTerminalView.link(in: lines, row: 0, column: 7, columns: 80))

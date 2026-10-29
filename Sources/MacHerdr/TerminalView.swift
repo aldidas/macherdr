@@ -687,10 +687,20 @@ final class LineBreakTerminalView: AppTerminalView {
             }
             joined += lines[index]
         }
-        guard let clickOffset,
-              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        guard let clickOffset else { return nil }
+        // A link never spans whitespace, so scan only the word under the
+        // pointer. Full-width TUI rows (borders, padding) join a whole screen
+        // into `joined`, and scanning all of it ran on every hover pause.
+        let utf16 = joined as NSString
+        var start = clickOffset
+        while start > 0, !Self.isLinkBoundary(utf16.character(at: start - 1)) { start -= 1 }
+        var end = clickOffset
+        while end < utf16.length, !Self.isLinkBoundary(utf16.character(at: end)) { end += 1 }
+        let range = NSRange(location: start, length: end - start)
+        let word = utf16.substring(with: range)
+        guard word.contains("://") || word.contains("mailto:"),
+              let detector = linkDetector
         else { return nil }
-        let range = NSRange(joined.startIndex..., in: joined)
         for match in detector.matches(in: joined, range: range)
         where NSLocationInRange(clickOffset, match.range) {
             // Bare words the detector promotes (README.md, foo.io) are not links.
@@ -701,6 +711,14 @@ final class LineBreakTerminalView: AppTerminalView {
             return TerminalLink(text: matched, url: url.absoluteString)
         }
         return nil
+    }
+
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue
+    )
+
+    private static func isLinkBoundary(_ unit: unichar) -> Bool {
+        unit == 0x20 || unit == 0x09 || unit == 0xA0
     }
 
     private static func displayWidth(_ line: String) -> Int {
