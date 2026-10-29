@@ -844,16 +844,78 @@ private struct TitlebarGlassMenu: ViewModifier {
     }
 }
 
-struct SpinnerView: View {
+/// The working spinner. The rotation is a Core Animation layer animation run by
+/// the render server: a SwiftUI `repeatForever` rotation re-lays out and
+/// re-renders the whole window's hosting view every frame (~30% CPU and a
+/// mostly busy main thread while any agent works).
+struct SpinnerView: NSViewRepresentable {
     let color: Color
-    @State private var spinning = false
 
-    var body: some View {
-        Circle()
-            .trim(from: 0.12, to: 1)
-            .stroke(color, style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
-            .rotationEffect(.degrees(spinning ? 360 : 0))
-            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spinning)
-            .onAppear { spinning = true }
+    func makeNSView(context: Context) -> SpinnerLayerView {
+        SpinnerLayerView()
+    }
+
+    func updateNSView(_ view: SpinnerLayerView, context: Context) {
+        view.color = NSColor(color)
+    }
+}
+
+final class SpinnerLayerView: NSView {
+    private static let rotationKey = "spin"
+    private let arc = CAShapeLayer()
+
+    var color: NSColor = .controlAccentColor {
+        didSet { updateStrokeColor() }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        arc.fillColor = nil
+        arc.lineWidth = 1.8
+        arc.lineCap = .round
+        arc.strokeStart = 0.12
+        arc.strokeEnd = 1
+        layer?.addSublayer(arc)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        arc.frame = bounds
+        let side = min(bounds.width, bounds.height)
+        arc.path = CGPath(
+            ellipseIn: CGRect(x: (bounds.width - side) / 2, y: (bounds.height - side) / 2, width: side, height: side),
+            transform: nil
+        )
+        CATransaction.commit()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil, arc.animation(forKey: Self.rotationKey) == nil else { return }
+        let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+        spin.fromValue = 0
+        spin.toValue = -2 * Double.pi  // clockwise in an unflipped layer
+        spin.duration = 0.9
+        spin.repeatCount = .infinity
+        spin.isRemovedOnCompletion = false
+        arc.add(spin, forKey: Self.rotationKey)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateStrokeColor()
+    }
+
+    private func updateStrokeColor() {
+        // Theme colors are dynamic; resolve against this view's appearance.
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            arc.strokeColor = color.cgColor
+        }
     }
 }
