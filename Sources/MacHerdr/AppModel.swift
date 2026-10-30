@@ -148,10 +148,18 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Kept-alive attaches: every agent/terminal the user has opened stays
-    /// mounted (hidden) so switching back preserves its scrollback and running
-    /// state instead of re-attaching. Evicted when its pane closes.
+    /// Kept-alive attaches: recently viewed agents/terminals stay mounted (hidden)
+    /// so switching back preserves their scrollback and running state instead of
+    /// re-attaching. Evicted when the pane closes, or when it falls out of the
+    /// `keptAliveAttachLimit` most recently viewed.
     @Published var attachSessions: [AttachedEntry] = []
+
+    /// Hidden attaches kept mounted. Each one is a ghostty surface holding two
+    /// full-window Metal framebuffers (~28 MB on a large Retina window) whether
+    /// shown or not, so an unbounded list grew with every pane ever opened.
+    static let keptAliveAttachLimit = 6
+    private var attachLastViewed: [PaneRef: UInt64] = [:]
+    private var attachViewClock: UInt64 = 0
 
     /// Branch/ahead per space, local devices only (remote shows none). Keyed by `SpaceEntry.id`.
     @Published private(set) var gitStatuses: [String: GitStatus] = [:]
@@ -193,7 +201,9 @@ final class AppModel: ObservableObject {
             }
             // A zoomed tab shows one pane; do not take the hidden ones over.
             if !layout.zoomed {
-                for paneID in tree.paneIDs { ensureAttached(PaneRef(deviceID: device.id, paneID: paneID)) }
+                let refs = tree.paneIDs.map { PaneRef(deviceID: device.id, paneID: $0) }
+                for ref in refs { ensureAttached(ref) }
+                trimAttachSessions(protecting: Set(refs))
             }
             let next = ActiveLayout(
                 tabID: layout.tabID, deviceID: device.id, tree: tree,
@@ -220,9 +230,40 @@ final class AppModel: ObservableObject {
     }
 
     private func ensureAttached(_ ref: PaneRef) {
+        markAttachViewed(ref)
         if let entry = currentAttachedEntry(for: ref), !attachSessions.contains(where: { $0.id == entry.id }) {
             attachSessions.append(entry)
         }
+    }
+
+    private func markAttachViewed(_ ref: PaneRef) {
+        attachViewClock += 1
+        attachLastViewed[ref] = attachViewClock
+    }
+
+    /// Unmounts the least recently viewed attaches beyond `keptAliveAttachLimit`.
+    /// Panes on screen — the selection, the visible split, and `protecting` (a
+    /// split whose layout is not published yet) — are never evicted. Switching
+    /// back to an evicted pane re-attaches it; herdr redraws the screen.
+    private func trimAttachSessions(protecting extra: Set<PaneRef> = []) {
+        let live = Set(attachSessions.map(\.ref))
+        attachLastViewed = attachLastViewed.filter { live.contains($0.key) }
+        let excess = attachSessions.count - Self.keptAliveAttachLimit
+        guard excess > 0 else { return }
+        var onScreen = extra
+        if let selectedPane { onScreen.insert(selectedPane) }
+        if let layout = activeLayout {
+            onScreen.formUnion(layout.tree.paneIDs.map { PaneRef(deviceID: layout.deviceID, paneID: $0) })
+        }
+        let evicted = Set(
+            attachSessions.map(\.ref)
+                .filter { !onScreen.contains($0) }
+                .sorted { (attachLastViewed[$0] ?? 0) < (attachLastViewed[$1] ?? 0) }
+                .prefix(excess)
+        )
+        guard !evicted.isEmpty else { return }
+        attachSessions.removeAll { evicted.contains($0.ref) }
+        for ref in evicted { attachLastViewed[ref] = nil }
     }
 
     /// A pane flips between agent and terminal when its agent exits (or one starts in
@@ -286,10 +327,12 @@ final class AppModel: ObservableObject {
     /// is in `attachSessions` in the same update the selection lands in — a separate
     /// onAppear/onChange would leave a one-frame window with no view for the new pane.
     private func noteSelectedAttachSession() {
-        guard let entry = selectedAttachedEntry,
-              !attachSessions.contains(where: { $0.id == entry.id })
-        else { return }
-        attachSessions.append(entry)
+        guard let entry = selectedAttachedEntry else { return }
+        markAttachViewed(entry.ref)
+        if !attachSessions.contains(where: { $0.id == entry.id }) {
+            attachSessions.append(entry)
+        }
+        trimAttachSessions()
     }
     /// Finished agents the user has not opened since they flipped to `done`.
     @Published private(set) var unreadAgents: Set<AgentUnreadKey> = []
