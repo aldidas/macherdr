@@ -22,23 +22,10 @@ final class SidebarSectionButtonsUIUXTests: XCTestCase {
         XCTAssertEqual(sidebar.listHeight, expanded, accuracy: 2, "the button does not collapse the section")
     }
 
-    func testTerminalsHeaderButtonOpensNewTerminal() throws {
-        let sidebar = try SidebarHarness(spaces: 14, agents: 20, terminals: 20)
-        let expanded = sidebar.listHeight
-        sidebar.scroll(.bottom)
-        XCTAssertEqual(sidebar.pinnedHeader, .terminals)
-
-        try sidebar.clickPinnedHeaderButton()
-        XCTAssertTrue(sidebar.model.showNewTerminal)
-        XCTAssertFalse(sidebar.model.showNewAgent)
-        XCTAssertEqual(sidebar.listHeight, expanded, accuracy: 2, "the button does not collapse the section")
-    }
-
     func testVoiceOverReadsEachHeaderButtonByName() throws {
-        let sidebar = try SidebarHarness(spaces: 14, agents: 20, terminals: 20)
+        let sidebar = try SidebarHarness(spaces: 14, agents: 20)
 
         XCTAssertTrue(sidebar.headerButtons(.agents).contains(String(localized: "New Agent")), "\(sidebar.headerButtons(.agents))")
-        XCTAssertTrue(sidebar.headerButtons(.terminals).contains(String(localized: "New Terminal")), "\(sidebar.headerButtons(.terminals))")
     }
 
     func testAgentsHeaderButtonPresentsTheNewAgentSheet() throws {
@@ -47,13 +34,6 @@ final class SidebarSectionButtonsUIUXTests: XCTestCase {
 
         try sidebar.pressHeaderButton(.agents, named: String(localized: "New Agent"))
         XCTAssertTrue(sidebar.sheetButtons.contains(String(localized: "Start Agent")), "\(sidebar.sheetButtons)")
-    }
-
-    func testTerminalsHeaderButtonPresentsTheNewTerminalSheet() throws {
-        let sidebar = try SidebarHarness(spaces: 14, agents: 20, terminals: 20, sheets: true)
-
-        try sidebar.pressHeaderButton(.terminals, named: String(localized: "New Terminal"))
-        XCTAssertTrue(sidebar.sheetButtons.contains(String(localized: "Open Terminal")), "\(sidebar.sheetButtons)")
     }
 
     func testClickingAHeaderTitleOpensNothing() throws {

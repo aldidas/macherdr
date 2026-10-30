@@ -14,7 +14,16 @@ final class UsagePopoverUIUXTests: XCTestCase {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.title = "UsagePopover \(UUID().uuidString)"
-        window.contentView = NSHostingView(rootView: UsagePopover(agentKind: "claude", usage: usage))
+        let info = TitlebarInfo(
+            agentKind: "claude",
+            title: "claude",
+            spaceName: "herdrm",
+            device: .local,
+            status: .working,
+            cwd: nil,
+            usage: usage
+        )
+        window.contentView = NSHostingView(rootView: UsagePopover(info: info, showsDevice: false))
         window.orderFrontRegardless()
         defer { window.close() }
         RunLoop.current.run(until: Date().addingTimeInterval(0.3))
