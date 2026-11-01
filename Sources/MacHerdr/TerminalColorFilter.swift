@@ -6,59 +6,82 @@ struct LightTerminalANSIAdapter {
     mutating func transform(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         pending.append(contentsOf: bytes)
         var output: [UInt8] = []
+        output.reserveCapacity(pending.count)
+        let consumed = pending.withUnsafeBufferPointer { buffer in
+            Self.transform(buffer, into: &output)
+        }
+        if consumed > 0 {
+            pending.removeFirst(consumed)
+        }
+        return output
+    }
+
+    /// Returns how many bytes of `buffer` were consumed; the rest is an
+    /// incomplete sequence the caller must retain for the next feed.
+    private static func transform(_ buffer: UnsafeBufferPointer<UInt8>, into output: inout [UInt8]) -> Int {
+        let count = buffer.count
+        guard let base = buffer.baseAddress else { return 0 }
         var index = 0
 
-        while index < pending.count {
-            guard pending[index] == 0x1B else {
-                output.append(pending[index])
-                index += 1
-                continue
+        while index < count {
+            // Copy the run up to the next ESC in one go: most output is text.
+            guard let escape = memchr(base + index, 0x1B, count - index) else {
+                output.append(contentsOf: UnsafeBufferPointer(start: base + index, count: count - index))
+                return count
             }
-            guard index + 1 < pending.count else { break }
-            guard pending[index + 1] == 0x5B else {
-                output.append(pending[index])
+            let escapeIndex = base.distance(to: escape.assumingMemoryBound(to: UInt8.self))
+            if escapeIndex > index {
+                output.append(contentsOf: UnsafeBufferPointer(start: base + index, count: escapeIndex - index))
+                index = escapeIndex
+            }
+            guard index + 1 < count else { break }
+            guard buffer[index + 1] == 0x5B else {
+                output.append(0x1B)
                 index += 1
                 continue
             }
 
             var end = index + 2
-            while end < pending.count, !(0x40...0x7E).contains(pending[end]) {
+            while end < count, !(0x40...0x7E).contains(buffer[end]) {
                 end += 1
             }
-            guard end < pending.count else { break }
+            guard end < count else { break }
 
-            let sequence = Array(pending[index...end])
-            if pending[end] == 0x6D {
-                // A Powerline separator is a foreground-colored shape painted
-                // over the next segment's background.  Its foreground is not
-                // ordinary text: it is deliberately the previous segment's
-                // background.  Wait for the next scalar so the light-theme
-                // contrast transform does not turn that join into a dark,
-                // blended-looking arrow.
-                if let preservesPowerlineForeground = powerlineFollowsSGR(after: end + 1) {
-                    output.append(contentsOf: transformSGR(
-                        sequence,
-                        preservePowerlineForeground: preservesPowerlineForeground
-                    ))
-                } else if sequenceContainsForegroundColor(sequence) {
-                    // Only a foreground SGR can be the color of a following
-                    // separator. Do not hold resets/background-only updates at
-                    // the end of a PTY read; otherwise typed echo can inherit
-                    // the previous cell's style until another output arrives.
-                    break
-                } else {
-                    output.append(contentsOf: transformSGR(sequence))
-                }
-            } else {
+            let sequence = UnsafeBufferPointer(rebasing: buffer[index...end])
+            guard buffer[end] == 0x6D else {
                 output.append(contentsOf: sequence)
+                index = end + 1
+                continue
             }
+
+            let parameters = UnsafeBufferPointer(rebasing: buffer[(index + 2)..<end])
+            let colors = colorIntroducers(in: parameters)
+            if !colors.has38, !colors.has48 {
+                // No 38/48 token: the transform is the identity.
+                output.append(contentsOf: sequence)
+                index = end + 1
+                continue
+            }
+            // A Powerline separator is a foreground-colored shape painted
+            // over the next segment's background.  Its foreground is not
+            // ordinary text: it is deliberately the previous segment's
+            // background.  Wait for the next scalar so the light-theme
+            // contrast transform does not turn that join into a dark,
+            // blended-looking arrow.
+            //
+            // Only a foreground SGR (38) can be the color of a following
+            // separator, so only it is held back at the end of a PTY read;
+            // otherwise typed echo can inherit the previous cell's style
+            // until another output arrives.
+            var preservesPowerlineForeground = false
+            if colors.has38 {
+                guard let follows = powerlineFollowsSGR(in: buffer, after: end + 1) else { break }
+                preservesPowerlineForeground = follows
+            }
+            transformSGR(parameters, preservePowerlineForeground: preservesPowerlineForeground, into: &output)
             index = end + 1
         }
-
-        if index > 0 {
-            pending.removeFirst(index)
-        }
-        return output
+        return index
     }
 
     /// WCAG contrast ratio of an sRGB color against a white background.
@@ -117,37 +140,46 @@ struct LightTerminalANSIAdapter {
         return (levels[value / 36], levels[(value / 6) % 6], levels[value % 6])
     }
 
-    private func sequenceContainsForegroundColor(_ sequence: [UInt8]) -> Bool {
-        guard sequence.count >= 3 else { return false }
-        let parameters = sequence[2..<(sequence.count - 1)]
-        let values = String(decoding: parameters, as: UTF8.self)
-            .split(separator: ";", omittingEmptySubsequences: false)
-        return values.contains { $0 == "38" }
+    /// Whether the parameter list holds a `38` or `48` token.
+    private static func colorIntroducers(in parameters: UnsafeBufferPointer<UInt8>) -> (has38: Bool, has48: Bool) {
+        var has38 = false
+        var has48 = false
+        var cursor = TokenCursor(parameters)
+        while let token = cursor.next() {
+            if token.count == 2, parameters[token.lowerBound + 1] == 0x38 {
+                switch parameters[token.lowerBound] {
+                case 0x33: has38 = true
+                case 0x34: has48 = true
+                default: break
+                }
+            }
+        }
+        return (has38, has48)
     }
 
     /// Looks past complete control sequences for the next UTF-8 scalar.
     /// `nil` means that the current chunk ends before the scalar (or its
     /// intervening CSI), so the caller must retain the SGR for the next feed.
-    private func powerlineFollowsSGR(after start: Int) -> Bool? {
+    private static func powerlineFollowsSGR(in buffer: UnsafeBufferPointer<UInt8>, after start: Int) -> Bool? {
         var index = start
-        while index < pending.count {
+        while index < buffer.count {
             // SGRs are sometimes split into separate writes by a prompt
             // renderer. Skip a complete CSI while looking for the glyph.
-            if pending[index] == 0x1B {
-                guard index + 1 < pending.count else { return nil }
-                guard pending[index + 1] == 0x5B else { return false }
+            if buffer[index] == 0x1B {
+                guard index + 1 < buffer.count else { return nil }
+                guard buffer[index + 1] == 0x5B else { return false }
                 var end = index + 2
-                while end < pending.count, !(0x40...0x7E).contains(pending[end]) {
+                while end < buffer.count, !(0x40...0x7E).contains(buffer[end]) {
                     end += 1
                 }
-                guard end < pending.count else { return nil }
+                guard end < buffer.count else { return nil }
                 index = end + 1
                 continue
             }
 
             // Do not classify an incomplete UTF-8 sequence as an ordinary
             // character: dataReceived can split the glyph across chunks.
-            let first = pending[index]
+            let first = buffer[index]
             let scalarLength: Int
             switch first {
             case 0xC2...0xDF: scalarLength = 2
@@ -156,66 +188,151 @@ struct LightTerminalANSIAdapter {
             default:
                 return false
             }
-            guard index + scalarLength <= pending.count else { return nil }
-            let scalarBytes = pending[index..<(index + scalarLength)]
-            guard let scalar = String(decoding: scalarBytes, as: UTF8.self).unicodeScalars.first else {
-                return false
-            }
+            guard index + scalarLength <= buffer.count else { return nil }
             // Include the thin and rounded Powerline variants as well as the
-            // four shapes the renderer draws itself. All of them use the same
-            // foreground/background layering contract.
-            return (0xE0B0...0xE0D7).contains(scalar.value)
+            // four shapes the renderer draws itself (U+E0B0...U+E0D7, encoded
+            // EE 82 B0...EE 83 97). All of them use the same
+            // foreground/background layering contract. Malformed bytes decode
+            // to U+FFFD, which is outside the range.
+            guard scalarLength == 3, first == 0xEE else { return false }
+            let second = buffer[index + 1]
+            let third = buffer[index + 2]
+            if second == 0x82 { return (0xB0...0xBF).contains(third) }
+            if second == 0x83 { return (0x80...0x97).contains(third) }
+            return false
         }
         return nil
     }
 
-    private func transformSGR(
-        _ sequence: [UInt8],
-        preservePowerlineForeground: Bool = false
-    ) -> [UInt8] {
-        guard sequence.count >= 3 else { return sequence }
-        let parameters = sequence[2..<(sequence.count - 1)]
-        let values = String(decoding: parameters, as: UTF8.self)
-            .split(separator: ";", omittingEmptySubsequences: false)
-            .map(String.init)
-        var output: [String] = []
-        var index = 0
+    /// Rewrites one SGR's colors for the light theme. `parameters` is the
+    /// text between `ESC [` and `m`; tokens are `;`-separated, empty ones kept.
+    private static func transformSGR(
+        _ parameters: UnsafeBufferPointer<UInt8>,
+        preservePowerlineForeground: Bool,
+        into output: inout [UInt8]
+    ) {
+        output.append(0x1B)
+        output.append(0x5B)
+        var cursor = TokenCursor(parameters)
+        var first = true
 
-        while index < values.count {
-            let isColor = values[index] == "38" || values[index] == "48"
-            let isBackground = values[index] == "48"
-            if isColor, index + 4 < values.count, values[index + 1] == "2",
-               let red = Int(values[index + 2]),
-               let green = Int(values[index + 3]),
-               let blue = Int(values[index + 4]),
-               (0...255).contains(red), (0...255).contains(green), (0...255).contains(blue) {
-                let light = preservePowerlineForeground && !isBackground
+        func separate() {
+            if !first { output.append(0x3B) }
+            first = false
+        }
+        func emit(_ token: Range<Int>) {
+            separate()
+            output.append(contentsOf: UnsafeBufferPointer(rebasing: parameters[token]))
+        }
+        func emit(number: Int) {
+            separate()
+            if number >= 100 { output.append(UInt8(0x30 + number / 100)) }
+            if number >= 10 { output.append(UInt8(0x30 + (number / 10) % 10)) }
+            output.append(UInt8(0x30 + number % 10))
+        }
+
+        while let token = cursor.next() {
+            let isColor = token.count == 2 && parameters[token.lowerBound + 1] == 0x38
+                && (parameters[token.lowerBound] == 0x33 || parameters[token.lowerBound] == 0x34)
+            guard isColor else {
+                emit(token)
+                continue
+            }
+            let isBackground = parameters[token.lowerBound] == 0x34
+            let light = { (red: Int, green: Int, blue: Int) in
+                preservePowerlineForeground && !isBackground
                     // Separator foregrounds are neighboring backgrounds, so
                     // use the background transform rather than the text
                     // contrast transform. This also keeps dark prompts
                     // internally consistent after their backgrounds flip.
-                    ? Self.adapt(red: red, green: green, blue: blue, isBackground: true)
-                    : Self.adapt(red: red, green: green, blue: blue, isBackground: isBackground)
-                output += [values[index], "2", String(light.red), String(light.green), String(light.blue)]
-                index += 5
-            } else if isColor, index + 2 < values.count, values[index + 1] == "5",
-                      let paletteIndex = Int(values[index + 2]),
-                      // 0–15 resolve through the installed ANSI palette, which is
-                      // already themed; rewriting them here would flip them twice.
-                      (16...255).contains(paletteIndex) {
-                let base = Self.xterm256RGB(paletteIndex)
-                let light = preservePowerlineForeground && !isBackground
-                    ? Self.adapt(red: base.red, green: base.green, blue: base.blue, isBackground: true)
-                    : Self.adapt(red: base.red, green: base.green, blue: base.blue, isBackground: isBackground)
-                output += [values[index], "2", String(light.red), String(light.green), String(light.blue)]
-                index += 3
-            } else {
-                output.append(values[index])
-                index += 1
+                    ? adapt(red: red, green: green, blue: blue, isBackground: true)
+                    : adapt(red: red, green: green, blue: blue, isBackground: isBackground)
             }
+
+            var lookahead = cursor
+            if let mode = lookahead.next() {
+                if mode.count == 1, parameters[mode.lowerBound] == 0x32,
+                   let red = lookahead.nextInt(), let green = lookahead.nextInt(), let blue = lookahead.nextInt(),
+                   (0...255).contains(red), (0...255).contains(green), (0...255).contains(blue) {
+                    let adapted = light(red, green, blue)
+                    emit(token)
+                    emit(number: 2)
+                    emit(number: adapted.red)
+                    emit(number: adapted.green)
+                    emit(number: adapted.blue)
+                    cursor = lookahead
+                    continue
+                }
+                var palette = cursor
+                _ = palette.next()
+                // 0–15 resolve through the installed ANSI palette, which is
+                // already themed; rewriting them here would flip them twice.
+                if mode.count == 1, parameters[mode.lowerBound] == 0x35,
+                   let paletteIndex = palette.nextInt(), (16...255).contains(paletteIndex) {
+                    let base = xterm256RGB(paletteIndex)
+                    let adapted = light(base.red, base.green, base.blue)
+                    emit(token)
+                    emit(number: 2)
+                    emit(number: adapted.red)
+                    emit(number: adapted.green)
+                    emit(number: adapted.blue)
+                    cursor = palette
+                    continue
+                }
+            }
+            emit(token)
+        }
+        output.append(0x6D)
+    }
+
+    /// Walks the `;`-separated tokens of an SGR parameter list, yielding
+    /// `String.split(omittingEmptySubsequences: false)` semantics: an empty
+    /// list is one empty token and a trailing `;` adds a final empty one.
+    private struct TokenCursor {
+        private let bytes: UnsafeBufferPointer<UInt8>
+        private var position = 0
+        private var finished = false
+
+        init(_ bytes: UnsafeBufferPointer<UInt8>) {
+            self.bytes = bytes
         }
 
-        return [0x1B, 0x5B] + Array(output.joined(separator: ";").utf8) + [0x6D]
+        mutating func next() -> Range<Int>? {
+            guard !finished else { return nil }
+            var end = position
+            while end < bytes.count, bytes[end] != 0x3B { end += 1 }
+            let token = position..<end
+            if end == bytes.count {
+                finished = true
+            } else {
+                position = end + 1
+            }
+            return token
+        }
+
+        /// The next token as an `Int`, with `Int(String)` semantics, or nil
+        /// when there is none or it does not parse.
+        mutating func nextInt() -> Int? {
+            guard let token = next() else { return nil }
+            var index = token.lowerBound
+            var negative = false
+            if index < token.upperBound, bytes[index] == 0x2B || bytes[index] == 0x2D {
+                negative = bytes[index] == 0x2D
+                index += 1
+            }
+            guard index < token.upperBound else { return nil }
+            var value = 0
+            while index < token.upperBound {
+                let digit = Int(bytes[index]) - 0x30
+                guard (0...9).contains(digit) else { return nil }
+                let (scaled, overflowMul) = value.multipliedReportingOverflow(by: 10)
+                let (sum, overflowAdd) = scaled.addingReportingOverflow(negative ? -digit : digit)
+                if overflowMul || overflowAdd { return nil }
+                value = sum
+                index += 1
+            }
+            return value
+        }
     }
 
     private static func clamp(_ value: Double) -> Int {
