@@ -122,7 +122,7 @@ struct SidebarView: View {
 
     private var spacesPane: some View {
         VStack(spacing: 1) {
-            StickySection(background: { Theme.sidebarHeaderBackground }) {
+            StickySection(background: { Color.clear }) {
                 groupHeader("Spaces", expanded: $spacesExpanded) {
                     EmptyView()
                 }
@@ -147,7 +147,7 @@ struct SidebarView: View {
 
     private var agentsPane: some View {
         VStack(spacing: 1) {
-            StickySection(background: { Theme.sidebarHeaderBackground }) {
+            StickySection(background: { Color.clear }) {
                 groupHeader("Agents", expanded: $agentsExpanded) {
                     Text("priority")
                         .font(.system(size: 11))
@@ -750,9 +750,6 @@ private struct SpaceRowView: View {
             RoundedRectangle(cornerRadius: 7)
                 .fill(selected || hovered ? AnyShapeStyle(Theme.itemWashSelected) : AnyShapeStyle(.clear))
         )
-        .overlay {
-            if selected { RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.sidebarBorder, lineWidth: 1) }
-        }
         .onHover { hovered = $0 }
         .sidebarDragChrome(
             isDragging: draggingSpaceID == entry.id,
